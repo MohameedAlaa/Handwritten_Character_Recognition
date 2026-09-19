@@ -195,7 +195,32 @@ def main():
             try:
                 # Load and preprocess exactly like the notebook
                 img_bytes = uploaded_file.read()
-                img = tf.image.decode_image(img_bytes, channels=1)
+                
+                # --- NEW AUTOCROP PREPROCESSING ---
+                np_img = np.frombuffer(img_bytes, np.uint8)
+                img_cv = cv2.imdecode(np_img, cv2.IMREAD_GRAYSCALE)
+                
+                # Detect foreground (handle white or black background)
+                if img_cv.mean() > 127:
+                    _, thresh = cv2.threshold(img_cv, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+                else:
+                    _, thresh = cv2.threshold(img_cv, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                
+                coords = cv2.findNonZero(thresh)
+                if coords is not None:
+                    x, y, w, h = cv2.boundingRect(coords)
+                    pad = 10
+                    x = max(0, x - pad)
+                    y = max(0, y - pad)
+                    w = min(img_cv.shape[1] - x, w + 2 * pad)
+                    h = min(img_cv.shape[0] - y, h + 2 * pad)
+                    img_cv = img_cv[y:y+h, x:x+w]
+                
+                # Back to tensor
+                img = tf.convert_to_tensor(img_cv)
+                img = tf.expand_dims(img, axis=-1)
+                
+                # --- EXISTING NOTEBOOK PREPROCESSING ---
                 img = tf.image.resize_with_pad(img, target_height=32, target_width=128)
                 img = tf.cast(img, tf.float32) / 255.0
                 img = tf.transpose(img, perm=[1, 0, 2])
