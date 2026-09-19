@@ -151,8 +151,22 @@ def main():
                 # Detect foreground (handle white or black background)
                 if img_cv.mean() > 127:
                     _, thresh = cv2.threshold(img_cv, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+                    bg_color = 255
                 else:
                     _, thresh = cv2.threshold(img_cv, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                    bg_color = 0
+                
+                # Remove horizontal ruled-paper lines
+                # Use a wide structuring element to be conservative and only catch long lines
+                kernel_length = max(img_cv.shape[1] // 10, 40)
+                horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_length, 1))
+                
+                # Isolate lines
+                lines_isolated = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
+                
+                # Remove isolated lines from both the threshold mask and the original image
+                img_cv[lines_isolated > 0] = bg_color
+                thresh[lines_isolated > 0] = 0
                 
                 coords = cv2.findNonZero(thresh)
                 if coords is not None:
