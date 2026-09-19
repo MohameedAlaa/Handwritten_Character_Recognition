@@ -4,7 +4,7 @@ import cv2
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
 import tensorflow as tf
-from src.inference import predict_character, predict_text
+from src.inference import predict_character
 from src.data_loader import get_class_mapping
 from src.config import BEST_MODEL_PATH
 import os
@@ -47,7 +47,7 @@ def main():
 
     class_mapping = get_class_mapping()
 
-    app_mode = st.sidebar.radio("Select Mode:", ("Single Character", "Experimental: Segmentation Text", "Word Recognition (IAM CRNN)"))
+    app_mode = st.sidebar.radio("Select Mode:", ("Single Character", "Handwritten Word Recognition"))
 
     if app_mode == "Single Character":
         model = load_model()
@@ -118,84 +118,32 @@ def main():
             else:
                 st.write("Provide an input to see the prediction.")
 
-    elif app_mode == "Experimental: Segmentation Text":
-        model = load_model()
-        if model is None:
-            st.error(f"Model not found at {BEST_MODEL_PATH}. Please run the training pipeline first.")
-            return
-
-        st.header("Experimental: Segmentation Text Recognition")
-        st.markdown("Upload or take a photo of separated handwritten characters to read the word! (Uses Single-Character Model)")
-
-        input_mode = st.sidebar.radio("Choose Input Mode:", ("Upload Image", "Camera Capture"))
-
-        img_array = None
-
-        st.subheader("Input")
-
-        if input_mode == "Upload Image":
-            uploaded_file = st.file_uploader("Upload an image with handwritten text", type=["png", "jpg", "jpeg"])
-            if uploaded_file is not None:
-                try:
-                    img = Image.open(uploaded_file).convert("RGB")
-                    img_array = np.array(img)
-                    st.image(img, caption="Uploaded Image", use_container_width=True)
-                except Exception as e:
-                    st.error(f"Error processing image: {e}")
-                    img_array = None
-
-        elif input_mode == "Camera Capture":
-            camera_file = st.camera_input("Take a picture of handwritten text")
-            if camera_file is not None:
-                try:
-                    img = Image.open(camera_file).convert("RGB")
-                    img_array = np.array(img)
-                    # st.camera_input already shows the preview, so we skip st.image here
-                except Exception as e:
-                    st.error(f"Error processing camera input: {e}")
-                    img_array = None
-
-        if img_array is not None:
-            st.subheader("Results")
-            with st.spinner("Processing..."):
-                try:
-                    text, preds, boxes, vis_image = predict_text(model, img_array, class_mapping)
-
-                    if not preds:
-                        st.warning("No characters detected. Try a clearer image or adjust lighting.")
-                    else:
-                        st.success(f"Recognized Text: **{text}**")
-                        st.write(f"Detected **{len(preds)}** characters.")
-
-                        col_vis, col_details = st.columns([2, 1])
-
-                        with col_vis:
-                            st.image(vis_image, caption="Segmentation Visualization", use_container_width=True)
-
-                        with col_details:
-                            st.write("**Character Breakdown:**")
-                            for i, (char, conf) in enumerate(preds):
-                                st.write(f"{i+1}. **{char}** - {conf*100:.1f}%")
-
-                except Exception as e:
-                    st.error(f"Error during text recognition: {e}")
-
-    elif app_mode == "Word Recognition (IAM CRNN)":
+    elif app_mode == "Handwritten Word Recognition":
         iam_model = load_iam_model()
         if iam_model is None:
             st.error(f"Model not found at {IAM_MODEL_PATH}. Please run the IAM CRNN pipeline first.")
             return
 
-        st.header("Word Recognition (IAM CRNN)")
-        st.markdown("Upload an image of a **single handwritten word** to recognize it using the CRNN+CTC model. *Note: This is word-level recognition, not sentence-level.*")
+        st.header("Handwritten Word Recognition")
+        st.markdown("Upload or take a photo of a **single handwritten word** to recognize it. *Note: This is word-level recognition, not sentence-level.*")
 
-        uploaded_file = st.file_uploader("Upload an image with a single handwritten word", type=["png", "jpg", "jpeg"])
+        input_mode = st.sidebar.radio("Choose Input Mode:", ("Upload Image", "Camera Capture"))
 
-        if uploaded_file is not None:
-            try:
-                # Load and preprocess exactly like the notebook
+        img_bytes = None
+
+        if input_mode == "Upload Image":
+            uploaded_file = st.file_uploader("Upload an image with a single handwritten word", type=["png", "jpg", "jpeg"])
+            if uploaded_file is not None:
                 img_bytes = uploaded_file.read()
-                
+                st.image(uploaded_file, caption="Uploaded Image", use_container_width=False, width=300)
+
+        elif input_mode == "Camera Capture":
+            camera_file = st.camera_input("Take a picture of a single handwritten word")
+            if camera_file is not None:
+                img_bytes = camera_file.read()
+
+        if img_bytes is not None:
+            try:
                 # --- NEW AUTOCROP PREPROCESSING ---
                 np_img = np.frombuffer(img_bytes, np.uint8)
                 img_cv = cv2.imdecode(np_img, cv2.IMREAD_GRAYSCALE)
@@ -227,9 +175,6 @@ def main():
 
                 # Expand dims to batch size 1
                 img_batch = tf.expand_dims(img, axis=0)
-
-                # Show uploaded image
-                st.image(uploaded_file, caption="Uploaded Image", use_container_width=False, width=300)
 
                 with st.spinner("Processing..."):
                     preds = iam_model.predict(img_batch)
