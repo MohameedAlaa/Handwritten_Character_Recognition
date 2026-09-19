@@ -198,6 +198,7 @@ def main():
                 img = tf.image.decode_image(img_bytes, channels=1)
                 img = tf.image.resize_with_pad(img, target_height=32, target_width=128)
                 img = tf.cast(img, tf.float32) / 255.0
+                img = tf.transpose(img, perm=[1, 0, 2])
 
                 # Expand dims to batch size 1
                 img_batch = tf.expand_dims(img, axis=0)
