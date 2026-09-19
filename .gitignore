@@ -18,3 +18,18 @@ __pycache__/
 # Temporary/generated files
 notebook_dump.txt
 task.md
+# Local development / temporary scripts
+create_notebook.py
+diagnose_iam_images.py
+emnist_inspection.png
+evaluation_report.md
+extract_outputs.py
+generate_notebook*.py
+inspect_data.py
+outputs/
+run_preflight.py
+scripts/
+test_local_segmentation.py
+
+# Experimental segmentation crops
+results/crop_*.png
