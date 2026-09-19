@@ -53,5 +53,5 @@ def get_class_mapping():
     """
     Returns the character mapping for EMNIST Balanced from local file.
     """
-    mapping_path = os.path.join(RAW_DATA_DIR, "EMNIST", "emnist-balanced-mapping.txt")
+    mapping_path = os.path.join(os.path.dirname(__file__), "emnist_balanced_mapping.txt")
     return read_mapping(mapping_path)
