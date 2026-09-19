@@ -9,5 +9,5 @@ streamlit-drawable-canvas
 emnist
 jupyter
 pytest
-opencv-python
+opencv-python-headless
 editdistance
