@@ -168,33 +168,115 @@ def main():
                 img_cv[lines_isolated > 0] = bg_color
                 thresh[lines_isolated > 0] = 0
                 
-                coords = cv2.findNonZero(thresh)
-                if coords is not None:
-                    x, y, w, h = cv2.boundingRect(coords)
-                    pad = 10
-                    x = max(0, x - pad)
-                    y = max(0, y - pad)
-                    w = min(img_cv.shape[1] - x, w + 2 * pad)
-                    h = min(img_cv.shape[0] - y, h + 2 * pad)
-                    img_cv = img_cv[y:y+h, x:x+w]
+                # --- NEW WORD SEGMENTATION ---
+                # 1. Morphological dilation to group characters into word blobs
+                # A rectangular kernel wider than tall connects characters horizontally
+                kernel_word = cv2.getStructuringElement(cv2.MORPH_RECT, (12, 3))
+                dilated = cv2.dilate(thresh, kernel_word, iterations=1)
                 
-                # Back to tensor
-                img = tf.convert_to_tensor(img_cv)
-                img = tf.expand_dims(img, axis=-1)
+                # 2. Find contours
+                contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 
-                # --- EXISTING NOTEBOOK PREPROCESSING ---
-                img = tf.image.resize_with_pad(img, target_height=32, target_width=128)
-                img = tf.cast(img, tf.float32) / 255.0
-                img = tf.transpose(img, perm=[1, 0, 2])
-
-                # Expand dims to batch size 1
-                img_batch = tf.expand_dims(img, axis=0)
-
-                with st.spinner("Processing..."):
-                    preds = iam_model.predict(img_batch)
-                    predicted_word = decode_iam_prediction(preds)
-
-                    st.success(f"Recognized Word: **{predicted_word}**")
+                boxes = []
+                for cnt in contours:
+                    x, y, w, h = cv2.boundingRect(cnt)
+                    # Filter noise: minimum 10x10 and area > 100
+                    if w > 10 and h > 10 and (w * h) > 100:
+                        boxes.append([x, y, w, h])
+                
+                if not boxes:
+                    st.warning("No handwritten text detected. Please try again.")
+                    return
+                    
+                # 3. Group boxes into text lines
+                boxes.sort(key=lambda b: b[1])  # Sort by y first
+                
+                lines = []
+                current_line = []
+                # dynamic y-tolerance based on median height
+                median_h = np.median([b[3] for b in boxes]) if boxes else 20
+                y_tol = median_h * 0.5
+                
+                for box in boxes:
+                    cy = box[1] + box[3] / 2
+                    if not current_line:
+                        current_line.append(box)
+                    else:
+                        avg_cy = np.mean([b[1] + b[3] / 2 for b in current_line])
+                        if abs(cy - avg_cy) < y_tol:
+                            current_line.append(box)
+                        else:
+                            lines.append(current_line)
+                            current_line = [box]
+                if current_line:
+                    lines.append(current_line)
+                    
+                # 4. Sort lines vertically and words horizontally
+                lines.sort(key=lambda line: np.mean([b[1] for b in line]))
+                for line in lines:
+                    line.sort(key=lambda b: b[0])
+                    
+                num_lines = len(lines)
+                num_words = sum(len(line) for line in lines)
+                
+                # Optional: draw segmentation preview for debugging
+                vis = cv2.cvtColor(img_cv.copy(), cv2.COLOR_GRAY2BGR)
+                for line in lines:
+                    for (x, y, w, h) in line:
+                        cv2.rectangle(vis, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                st.image(vis, caption=f"Segmentation Preview ({num_lines} lines, {num_words} words)", use_container_width=False, width=300)
+                
+                # 5. Process each word
+                word_crops = []
+                
+                for line in lines:
+                    for (x, y, w, h) in line:
+                        pad = 10
+                        x_start = max(0, x - pad)
+                        y_start = max(0, y - pad)
+                        x_end = min(img_cv.shape[1], x + w + pad)
+                        y_end = min(img_cv.shape[0], y + h + pad)
+                        
+                        word_crop = img_cv[y_start:y_end, x_start:x_end]
+                        
+                        # --- EXISTING NOTEBOOK PREPROCESSING ---
+                        img = tf.convert_to_tensor(word_crop)
+                        img = tf.expand_dims(img, axis=-1)
+                        img = tf.image.resize_with_pad(img, target_height=32, target_width=128)
+                        img = tf.cast(img, tf.float32) / 255.0
+                        img = tf.transpose(img, perm=[1, 0, 2])
+                        word_crops.append(img)
+                        
+                if word_crops:
+                    # 6. Batch inference
+                    batch_tensor = tf.stack(word_crops, axis=0)
+                    with st.spinner(f"Recognizing {num_words} words..."):
+                        preds = iam_model.predict(batch_tensor, verbose=0)
+                        
+                        # CTC decoding for the whole batch inline to keep it simple
+                        preds_transpose = tf.transpose(preds, perm=[1, 0, 2])
+                        seq_lens = tf.fill([preds.shape[0]], preds.shape[1])
+                        decoded, _ = tf.nn.ctc_greedy_decoder(preds_transpose, sequence_length=seq_lens, blank_index=0)
+                        decoded_dense = tf.sparse.to_dense(decoded[0], default_value=-1).numpy()
+                        
+                        texts = []
+                        for seq in decoded_dense:
+                            text = "".join([iam_num_to_char[c] for c in seq if c in iam_num_to_char])
+                            texts.append(text)
+                        
+                        # Reconstruct text
+                        idx = 0
+                        final_text = []
+                        for line in lines:
+                            line_text = []
+                            for _ in line:
+                                line_text.append(texts[idx])
+                                idx += 1
+                            final_text.append(" ".join(line_text))
+                            
+                    reconstructed = "\n".join(final_text)
+                    st.success("Recognition Complete:")
+                    st.text(reconstructed)
             except Exception as e:
                 st.error(f"Error during CRNN inference: {e}")
 
