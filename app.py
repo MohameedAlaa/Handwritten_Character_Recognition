@@ -7,7 +7,182 @@ import tensorflow as tf
 from src.inference import predict_character
 from src.data_loader import get_class_mapping
 from src.config import BEST_MODEL_PATH
+from src.preprocessing import preprocess_images
 import os
+
+def segment_word_image(img_gray):
+    # Ensure binary image
+    _, binary = cv2.threshold(img_gray, 10, 255, cv2.THRESH_BINARY)
+    
+    # 1. Connected Components (Contours)
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Filter very small noise contours
+    boxes = [cv2.boundingRect(c) for c in contours if cv2.contourArea(c) > 5]
+    
+    if not boxes:
+        return [], [], img_gray
+        
+    # Stage 1: Grouping
+    # Group bounding boxes that belong to the same character (e.g., disconnected strokes of H)
+    def merge_boxes(b_list):
+        merged_any = True
+        while merged_any:
+            merged_any = False
+            b_list.sort(key=lambda b: b[0])
+            new_boxes = []
+            skip = set()
+            for i, b1 in enumerate(b_list):
+                if i in skip: continue
+                x1, y1, w1, h1 = b1
+                for j in range(i+1, len(b_list)):
+                    if j in skip: continue
+                    x2, y2, w2, h2 = b_list[j]
+                    
+                    h_overlap = min(x1+w1, x2+w2) - max(x1, x2)
+                    v_overlap = min(y1+h1, y2+h2) - max(y1, y2)
+                    
+                    should_merge = False
+                    
+                    # 1. Strong horizontal overlap (intersecting or very close)
+                    # Allow a tiny gap (e.g. up to 2 pixels) for slightly broken strokes
+                    if h_overlap > -2:
+                        if v_overlap > -min(h1, h2) * 0.5:
+                            should_merge = True
+                            
+                    # 2. Inside or heavily overlapping
+                    area1 = w1 * h1
+                    area2 = w2 * h2
+                    intersection = max(0, h_overlap) * max(0, v_overlap)
+                    if intersection > min(area1, area2) * 0.5:
+                        should_merge = True
+                        
+                    if should_merge:
+                        nx = min(x1, x2)
+                        ny = min(y1, y2)
+                        nw = max(x1+w1, x2+w2) - nx
+                        nh = max(y1+h1, y2+h2) - ny
+                        b1 = (nx, ny, nw, nh)
+                        x1, y1, w1, h1 = b1
+                        skip.add(j)
+                        merged_any = True
+                
+                new_boxes.append(b1)
+            b_list = new_boxes
+        return b_list
+        
+    grouped_boxes = merge_boxes(boxes)
+    
+    # Stage 2: Splitting
+    # Split touching characters by analyzing vertical projection
+    final_boxes = []
+    
+    widths = [b[2] for b in grouped_boxes]
+    median_w = np.median(widths) if widths else 0
+    
+    for (x, y, w, h) in grouped_boxes:
+        aspect_ratio = w / float(max(h, 1))
+        # Suspiciously wide component?
+        is_wide = aspect_ratio > 1.2 or (w > median_w * 1.3 and w > h * 0.5)
+        
+        if is_wide:
+            roi = binary[y:y+h, x:x+w]
+            proj = np.sum(roi, axis=0) / 255.0  # number of foreground pixels in each column
+            
+            # Smooth the projection to find reliable valleys
+            kernel = np.ones(5) / 5
+            proj_smooth = np.convolve(proj, kernel, mode='same')
+            
+            valleys = []
+            max_proj = np.max(proj_smooth)
+            
+            for i in range(5, w - 5):
+                window = proj_smooth[i-4:i+5]
+                if proj_smooth[i] == np.min(window):
+                    left_peak = np.max(proj_smooth[:i])
+                    right_peak = np.max(proj_smooth[i:])
+                    
+                    # True valley must be flanked by peaks
+                    if proj_smooth[i] < left_peak * 0.8 and proj_smooth[i] < right_peak * 0.8:
+                        if proj_smooth[i] < max_proj * 0.6:
+                            # Check transitions in the original column
+                            col = roi[:, i]
+                            transitions = np.sum((col[:-1] == 0) & (col[1:] > 0))
+                            if col[0] > 0: transitions += 1
+                            
+                            # Touching characters usually connect at a single point (1 transition)
+                            if transitions <= 1:
+                                valleys.append(i)
+                                
+            # Filter valleys (group flat valleys, avoid edges)
+            valid_splits = []
+            if valleys:
+                groups = []
+                current_group = [valleys[0]]
+                for v in valleys[1:]:
+                    if v - current_group[-1] <= 5:
+                        current_group.append(v)
+                    else:
+                        groups.append(current_group)
+                        current_group = [v]
+                groups.append(current_group)
+                
+                last_split = 0
+                for g in groups:
+                    center_v = g[len(g)//2]
+                    # Ensure it's not too close to the edges
+                    if (center_v - last_split) > max(10, h * 0.1) and (w - center_v) > max(10, h * 0.1):
+                        valid_splits.append(center_v)
+                        last_split = center_v
+                        
+            if valid_splits:
+                prev = 0
+                for v in valid_splits:
+                    sub_roi = roi[:, prev:v]
+                    if cv2.countNonZero(sub_roi) > 5:
+                        coords = cv2.findNonZero(sub_roi)
+                        if coords is not None:
+                            sx, sy, sw, sh = cv2.boundingRect(coords)
+                            final_boxes.append((x + prev + sx, y + sy, sw, sh))
+                    prev = v
+                    
+                sub_roi = roi[:, prev:]
+                if cv2.countNonZero(sub_roi) > 5:
+                    coords = cv2.findNonZero(sub_roi)
+                    if coords is not None:
+                        sx, sy, sw, sh = cv2.boundingRect(coords)
+                        final_boxes.append((x + prev + sx, y + sy, sw, sh))
+            else:
+                final_boxes.append((x, y, w, h))
+        else:
+            final_boxes.append((x, y, w, h))
+            
+    final_boxes.sort(key=lambda b: b[0])
+    
+    vis_image = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
+    crops = []
+    
+    for (x, y, w, h) in final_boxes:
+        cv2.rectangle(vis_image, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        
+        # Crop
+        crop = binary[y:y+h, x:x+w]
+        
+        # Pad to make square
+        diff = abs(w - h)
+        top = bottom = left = right = 0
+        if w > h:
+            top = diff // 2
+            bottom = diff - top
+        elif h > w:
+            left = diff // 2
+            right = diff - left
+            
+        padding = max(w, h) // 4  # Reasonable padding
+        crop_padded = cv2.copyMakeBorder(crop, top+padding, bottom+padding, left+padding, right+padding, cv2.BORDER_CONSTANT, value=0)
+        crops.append(crop_padded)
+        
+    return crops, final_boxes, vis_image
 
 st.set_page_config(page_title="Character Recognition", page_icon="✍️", layout="wide")
 
@@ -47,7 +222,7 @@ def main():
 
     class_mapping = get_class_mapping()
 
-    app_mode = st.sidebar.radio("Select Mode:", ("Single Character", "Handwritten Word Recognition"))
+    app_mode = st.sidebar.radio("Select Mode:", ("Write a Word", "Single Character"))
 
     if app_mode == "Single Character":
         model = load_model()
@@ -118,167 +293,95 @@ def main():
             else:
                 st.write("Provide an input to see the prediction.")
 
-    elif app_mode == "Handwritten Word Recognition":
-        iam_model = load_iam_model()
-        if iam_model is None:
-            st.error(f"Model not found at {IAM_MODEL_PATH}. Please run the IAM CRNN pipeline first.")
+    elif app_mode == "Write a Word":
+        model = load_model()
+        if model is None:
+            st.error(f"Model not found at {BEST_MODEL_PATH}. Please run the training pipeline first.")
             return
 
-        st.header("Handwritten Word Recognition")
-        st.markdown("Upload or take a photo of a **single handwritten word** to recognize it. *Note: This is word-level recognition, not sentence-level.*")
+        st.header("Write a Word")
+        st.markdown("Write one handwritten word inside the canvas. Then click **Recognize Word**.")
 
-        input_mode = st.sidebar.radio("Choose Input Mode:", ("Upload Image", "Camera Capture"))
+        # Large canvas for writing a full word
+        canvas_result = st_canvas(
+            fill_color="black",
+            stroke_width=12,
+            stroke_color="white",
+            background_color="black",
+            height=200,
+            width=800,
+            drawing_mode="freedraw",
+            key="word_canvas",
+            return_image_data=True,
+            update_streamlit=True,
+        )
 
-        img_bytes = None
+        col1, col2 = st.columns([1, 6])
+        with col1:
+            recognize_btn = st.button("Recognize Word", type="primary")
 
-        if input_mode == "Upload Image":
-            uploaded_file = st.file_uploader("Upload an image with a single handwritten word", type=["png", "jpg", "jpeg"])
-            if uploaded_file is not None:
-                img_bytes = uploaded_file.read()
-                st.image(uploaded_file, caption="Uploaded Image", use_container_width=False, width=300)
+        if recognize_btn:
+            if canvas_result.image_data is None:
+                st.warning("Canvas is empty.")
+                return
 
-        elif input_mode == "Camera Capture":
-            camera_file = st.camera_input("Take a picture of a single handwritten word")
-            if camera_file is not None:
-                img_bytes = camera_file.read()
+            # Extract image data (RGBA) and convert to grayscale
+            img_rgba = canvas_result.image_data.astype(np.uint8)
+            img_gray = cv2.cvtColor(img_rgba, cv2.COLOR_RGBA2GRAY)
 
-        if img_bytes is not None:
-            try:
-                # --- NEW AUTOCROP PREPROCESSING ---
-                np_img = np.frombuffer(img_bytes, np.uint8)
-                img_cv = cv2.imdecode(np_img, cv2.IMREAD_GRAYSCALE)
-                
-                # Detect foreground (handle white or black background)
-                if img_cv.mean() > 127:
-                    _, thresh = cv2.threshold(img_cv, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-                    bg_color = 255
-                else:
-                    _, thresh = cv2.threshold(img_cv, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-                    bg_color = 0
-                
-                # Remove horizontal ruled-paper lines
-                # Use a wide structuring element to be conservative and only catch long lines
-                kernel_length = max(img_cv.shape[1] // 10, 40)
-                horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_length, 1))
-                
-                # Isolate lines
-                lines_isolated = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
-                
-                # Remove isolated lines from both the threshold mask and the original image
-                img_cv[lines_isolated > 0] = bg_color
-                thresh[lines_isolated > 0] = 0
-                
-                # --- NEW WORD SEGMENTATION ---
-                # 1. Morphological dilation to group characters into word blobs
-                # A rectangular kernel wider than tall connects characters horizontally
-                kernel_word = cv2.getStructuringElement(cv2.MORPH_RECT, (12, 3))
-                dilated = cv2.dilate(thresh, kernel_word, iterations=1)
-                
-                # 2. Find contours
-                contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                
-                boxes = []
-                for cnt in contours:
-                    x, y, w, h = cv2.boundingRect(cnt)
-                    # Filter noise: minimum 10x10 and area > 100
-                    if w > 10 and h > 10 and (w * h) > 100:
-                        boxes.append([x, y, w, h])
-                
-                if not boxes:
-                    st.warning("No handwritten text detected. Please try again.")
-                    return
-                    
-                # 3. Group boxes into text lines
-                boxes.sort(key=lambda b: b[1])  # Sort by y first
-                
-                lines = []
-                current_line = []
-                # dynamic y-tolerance based on median height
-                median_h = np.median([b[3] for b in boxes]) if boxes else 20
-                y_tol = median_h * 0.5
-                
-                for box in boxes:
-                    cy = box[1] + box[3] / 2
-                    if not current_line:
-                        current_line.append(box)
-                    else:
-                        avg_cy = np.mean([b[1] + b[3] / 2 for b in current_line])
-                        if abs(cy - avg_cy) < y_tol:
-                            current_line.append(box)
-                        else:
-                            lines.append(current_line)
-                            current_line = [box]
-                if current_line:
-                    lines.append(current_line)
-                    
-                # 4. Sort lines vertically and words horizontally
-                lines.sort(key=lambda line: np.mean([b[1] for b in line]))
-                for line in lines:
-                    line.sort(key=lambda b: b[0])
-                    
-                num_lines = len(lines)
-                num_words = sum(len(line) for line in lines)
-                
-                # Optional: draw segmentation preview for debugging
-                vis = cv2.cvtColor(img_cv.copy(), cv2.COLOR_GRAY2BGR)
-                for line in lines:
-                    for (x, y, w, h) in line:
-                        cv2.rectangle(vis, (x, y), (x+w, y+h), (0, 255, 0), 2)
-                st.image(vis, caption=f"Segmentation Preview ({num_lines} lines, {num_words} words)", use_container_width=False, width=300)
-                
-                # 5. Process each word
-                word_crops = []
-                
-                for line in lines:
-                    for (x, y, w, h) in line:
-                        pad = 10
-                        x_start = max(0, x - pad)
-                        y_start = max(0, y - pad)
-                        x_end = min(img_cv.shape[1], x + w + pad)
-                        y_end = min(img_cv.shape[0], y + h + pad)
-                        
-                        word_crop = img_cv[y_start:y_end, x_start:x_end]
-                        
-                        # --- EXISTING NOTEBOOK PREPROCESSING ---
-                        img = tf.convert_to_tensor(word_crop)
-                        img = tf.expand_dims(img, axis=-1)
-                        img = tf.image.resize_with_pad(img, target_height=32, target_width=128)
-                        img = tf.cast(img, tf.float32) / 255.0
-                        img = tf.transpose(img, perm=[1, 0, 2])
-                        word_crops.append(img)
-                        
-                if word_crops:
-                    # 6. Batch inference
-                    batch_tensor = tf.stack(word_crops, axis=0)
-                    with st.spinner(f"Recognizing {num_words} words..."):
-                        preds = iam_model.predict(batch_tensor, verbose=0)
-                        
-                        # CTC decoding for the whole batch inline to keep it simple
-                        preds_transpose = tf.transpose(preds, perm=[1, 0, 2])
-                        seq_lens = tf.fill([preds.shape[0]], preds.shape[1])
-                        decoded, _ = tf.nn.ctc_greedy_decoder(preds_transpose, sequence_length=seq_lens, blank_index=0)
-                        decoded_dense = tf.sparse.to_dense(decoded[0], default_value=-1).numpy()
-                        
-                        texts = []
-                        for seq in decoded_dense:
-                            text = "".join([iam_num_to_char[c] for c in seq if c in iam_num_to_char])
-                            texts.append(text)
-                        
-                        # Reconstruct text
-                        idx = 0
-                        final_text = []
-                        for line in lines:
-                            line_text = []
-                            for _ in line:
-                                line_text.append(texts[idx])
-                                idx += 1
-                            final_text.append(" ".join(line_text))
-                            
-                    reconstructed = "\n".join(final_text)
-                    st.success("Recognition Complete:")
-                    st.text(reconstructed)
-            except Exception as e:
-                st.error(f"Error during CRNN inference: {e}")
+            if img_gray.max() < 10:
+                st.warning("No characters were detected. Please write a word clearly inside the canvas.")
+                return
+
+            with st.spinner("Segmenting and recognizing..."):
+                try:
+                    # 1. Segment Characters
+                    crops, boxes, vis_image = segment_word_image(img_gray)
+
+                    if not crops:
+                        st.warning("No characters were detected. Please write a word clearly inside the canvas.")
+                        return
+
+                    # Debug View: Segmentation Preview
+                    with st.expander(f"Segmentation Preview (Detected {len(crops)} characters)", expanded=False):
+                        st.image(vis_image, width=400)
+
+                    # 2. Preprocess Crops
+                    resized_crops = []
+                    for crop in crops:
+                        crop_resized = cv2.resize(crop, (28, 28), interpolation=cv2.INTER_AREA)
+                        # We need to transpose to match EMNIST format expected by preprocess_images
+                        crop_transposed = np.transpose(crop_resized)
+                        resized_crops.append(crop_transposed)
+
+                    # 3. Batch Inference
+                    batch_array = np.array(resized_crops)
+                    input_tensor = preprocess_images(batch_array)
+                    preds = model.predict(input_tensor, verbose=0)
+
+                    # 4. Decode and Reconstruct
+                    recognized_word = ""
+                    details = []
+                    for i, pred_probs in enumerate(preds):
+                        pred_class_idx = np.argmax(pred_probs)
+                        char = class_mapping[pred_class_idx]
+                        conf = pred_probs[pred_class_idx]
+                        recognized_word += char
+                        details.append(f"**{char}**  ({conf*100:.1f}%)")
+
+                    # 5. Display Final Results
+                    st.success("Recognition Complete")
+                    st.markdown("### Recognized Word")
+                    st.markdown(f"# {recognized_word}")
+
+                    st.markdown("**Detected Characters:**")
+                    cols = st.columns(min(len(details), 8))
+                    for i, detail in enumerate(details):
+                        with cols[i % len(cols)]:
+                            st.write(detail)
+
+                except Exception as e:
+                    st.error(f"Error during word recognition: {e}")
 
 if __name__ == "__main__":
     main()
