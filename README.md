@@ -1,42 +1,108 @@
-# CodeAlpha Handwritten Character Recognition
+# Handwritten Character & Word Recognition
 
-Professional ML pipeline and deployment for recognizing handwritten characters using the EMNIST Balanced dataset.
+## Project Overview
+This project is an end-to-end Machine Learning pipeline and web application for recognizing handwritten characters and words. The core ML objective is to accurately classify individual handwritten characters using a Convolutional Neural Network (CNN) trained on the EMNIST Balanced dataset. The application is deployed via Streamlit, providing an interactive and user-friendly interface to test the model.
 
-## Architecture
-The project utilizes `CharNet`, a custom lightweight VGG-style CNN designed for accurate predictions while preventing overfitting through Batch Normalization, Dropout, and Global Average Pooling.
+## Key Features
+
+### Single Character Recognition
+- Draw a single character on a dedicated canvas or upload an existing grayscale image.
+- Real-time character prediction using the custom EMNIST-trained model.
+- Displays the top 3 predicted classes with confidence percentages.
+
+### Write a Word
+- Write a complete handwritten word on a large, interactive canvas.
+- Automatic, robust character segmentation that isolates characters from left to right.
+- Per-character classification using the existing character model.
+- Full word reconstruction based on individual character predictions.
+
+*Note: The current application performs word-level recognition through character segmentation and classification. It does not perform full-page OCR or arbitrary sentence-level transcription.*
+
+## System Architecture
+
+```text
+User Input (Draw / Upload)
+        ↓
+   Streamlit UI
+        ↓
+Image / Canvas Preprocessing
+        ↓
+Character Segmentation (for "Write a Word")
+        ↓
+EMNIST Character Classifier
+        ↓
+ Character Predictions
+        ↓
+Word Reconstruction (for "Write a Word")
+        ↓
+   Recognized Word
+```
+
+## How the Application Works
+
+### Single Character Pipeline
+1. **Canvas / Input:** User draws or uploads an image of a single character.
+2. **Preprocessing:** The image is converted to grayscale, resized to 28x28, and normalized.
+3. **EMNIST Classifier:** The preprocessed image is passed directly to the trained CNN.
+4. **Character Prediction:** The application displays the predicted character and confidence scores.
+
+### Write a Word Pipeline
+1. **Full handwritten word on canvas:** User writes a word on a wide canvas.
+2. **Preprocessing:** The canvas image is converted to a binary image.
+3. **Character Segmentation:** The system identifies contours, groups strokes belonging to the same character, and splits closely touching characters.
+4. **Individual character crops:** Bounding boxes are extracted and ordered from left to right.
+5. **EMNIST Classifier:** Each character crop is preprocessed (padded, resized to 28x28) and passed to the model as a batch.
+6. **Left-to-right reconstruction:** Individual character predictions are collected.
+7. **Final Word:** The application displays the reconstructed word and a visual segmentation preview.
+
+## Machine Learning Approach
+- **Dataset:** EMNIST Balanced dataset (47 classes: digits, uppercase, and lowercase letters).
+- **Model:** `CharNet`, a custom lightweight VGG-style CNN.
+- **Input:** 28x28 grayscale images.
+- **Output:** Probability distribution over 47 character classes.
+- **Training:** The model is trained to minimize categorical cross-entropy loss, utilizing Batch Normalization, Dropout, and Global Average Pooling to prevent overfitting.
+
+## Character Segmentation
+The segmentation strategy isolates individual characters from a continuously written word:
+- **Foreground extraction:** The canvas drawing is thresholded into a binary image.
+- **Contour analysis:** `cv2.findContours` is used to detect connected components.
+- **Component grouping:** Disconnected strokes that belong to a single character (e.g., the dot of an 'i', or broken strokes) are conservatively grouped using bounding-box overlap heuristics.
+- **Touching-character splitting:** Suspiciously wide components (like touching characters) are analyzed via a smoothed vertical projection profile. The algorithm finds topographic valleys flanked by peaks and splits the merged characters precisely.
+- **Robustness:** Handles multi-stroke characters (e.g., 'A', 'H', 'O') safely without over-splitting, utilizing transition counts and aspect ratio validation.
+- **Ordering:** Final bounding boxes are sorted left-to-right.
+
+## Write a Word Pipeline Example
+
+Example of how the application reconstructs a word:
+**APPLE**
+→ `[A] | [P] | [P] | [L] | [E]` (Character crops isolated via segmentation)
+→ Character Classifier (Predicts each crop individually)
+→ **APPLE** (Reconstructed word)
+
+*Other validated application behaviors include correctly segmenting words like `A`, `AI`, and `HELLO`.*
 
 ## Project Structure
-- `src/`: Core reusable components (data loading, preprocessing, model architecture, training loop, evaluation).
-- `notebooks/01_pipeline.ipynb`: The core ML experimentation artifact containing the full executed pipeline.
-- `app.py`: Streamlit application for deployment, supporting both image upload and interactive drawing canvas.
-- `tests/`: Pytest unit tests for validating architecture and data pipelines.
+- `app.py`: The Streamlit web application.
+- `src/`: Core Python modules for ML logic (`model.py`, `data_loader.py`, `preprocessing.py`, `inference.py`, etc.).
+- `notebooks/`: Jupyter notebooks used for data exploration and model training (e.g., `01_pipeline.ipynb`).
+- `models/`: Directory storing the saved, compiled `.keras` models.
+- `tests/`: Pytest unit tests validating the data pipelines and model architecture.
 
-## Setup Instructions
+*Note: The repository also contains an earlier experiment (`02_iam_crnn.ipynb` and `models/iam_crnn_best.keras`) for word-level CRNN/CTC recognition using the IAM dataset. This is a separate historical experiment and does not power the current Streamlit "Write a Word" application.*
+
+## Installation
+
 1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. Run the Notebook to train the model:
-   ```bash
-   jupyter notebook notebooks/01_pipeline.ipynb
-   ```
-   ```bash
-   streamlit run app.py
-   ```
+```bash
+pip install -r requirements.txt
+```
 
-## Task 3: Word-Level Recognition (IAM CRNN)
-The project also includes a complete pipeline for word-level handwriting recognition using the IAM dataset.
-- **Architecture:** Convolutional Recurrent Neural Network (CRNN) with Connectionist Temporal Classification (CTC) loss.
-- **Dataset:** IAM Word Database, filtered with a writer-aware train/validation/test split.
-- **Constraints:**
-  - CTC blank index = 0.
-  - Vocabulary = 79 real characters + 1 blank.
-  - Image validation preflight to discard unreadable/empty images automatically.
-- **Pipeline Artifact:** The pipeline and metrics are recorded in `notebooks/02_iam_crnn.ipynb`.
+2. (Optional) Run tests to verify the environment:
+```bash
+pytest tests/
+```
 
-### Final CRNN Test Metrics
-- **Word Accuracy:** 63.51%
-- **CER:** 16.21%
-- **WER:** 36.49%
-
-*Note: The IAM CRNN is designed for single word-level recognition. It is not currently architected for arbitrary multi-word sentence recognition.*
+3. Start the Streamlit application:
+```bash
+streamlit run app.py
+```
