@@ -46,3 +46,29 @@ def test_dummy_decoding(crnn_model):
     # Should at least contain class 1 as decoded output
     assert len(decoded_dense[0]) > 0
     assert decoded_dense[0][0] == 1, "Decoding failed to identify the peak class."
+
+
+def test_crnn_real_word_prediction(crnn_model):
+    """Test CRNN prediction on actual IAM samples, ensuring centered preprocessing decodes correctly."""
+    from src.inference import predict_word_crnn
+    import cv2
+
+    sample_path = "data/IAM/words/a01/a01-000u/a01-000u-00-00.png"
+    if not os.path.exists(sample_path):
+        pytest.skip(f"IAM sample image not found at {sample_path}")
+
+    img = cv2.imread(sample_path)
+    res = predict_word_crnn(img, crnn_model)
+    assert not res["is_blank"], "Real sample must not be flagged as blank."
+    assert res["word"] == "A", f"Expected 'A', got {res['word']!r}"
+    assert res["confidence"] > 0.5
+
+
+def test_crnn_blank_image(crnn_model):
+    """Verify that empty/blank images are gracefully flagged as blank without crashing."""
+    from src.inference import predict_word_crnn
+    empty_img = np.zeros((100, 300), dtype=np.uint8)
+    res = predict_word_crnn(empty_img, crnn_model)
+    assert res["is_blank"] is True
+    assert res["word"] == ""
+    assert res["confidence"] == 0.0

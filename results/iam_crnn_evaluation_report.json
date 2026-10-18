@@ -1,0 +1,443 @@
+{
+  "split": "held_out_writers_test",
+  "num_test_writers": 67,
+  "total_test_samples_in_split": 9508,
+  "evaluated_samples": 1000,
+  "elapsed_seconds": 3.3348872661590576,
+  "mean_latency_ms_per_sample": 3.3348872661590576,
+  "metrics": {
+    "exact_word_accuracy": 0.723,
+    "cer": 0.11038011695906433,
+    "wer": 0.2777222777222777
+  },
+  "performance_by_word_length": {
+    "1": {
+      "total": 146,
+      "correct": 132,
+      "accuracy": 0.9041095890410958
+    },
+    "2": {
+      "total": 136,
+      "correct": 128,
+      "accuracy": 0.9411764705882353
+    },
+    "3": {
+      "total": 202,
+      "correct": 165,
+      "accuracy": 0.8168316831683168
+    },
+    "4": {
+      "total": 167,
+      "correct": 120,
+      "accuracy": 0.718562874251497
+    },
+    "5": {
+      "total": 99,
+      "correct": 68,
+      "accuracy": 0.6868686868686869
+    },
+    "6": {
+      "total": 85,
+      "correct": 41,
+      "accuracy": 0.4823529411764706
+    },
+    "7": {
+      "total": 58,
+      "correct": 24,
+      "accuracy": 0.41379310344827586
+    },
+    "8": {
+      "total": 33,
+      "correct": 16,
+      "accuracy": 0.48484848484848486
+    },
+    "9": {
+      "total": 41,
+      "correct": 16,
+      "accuracy": 0.3902439024390244
+    },
+    "10": {
+      "total": 15,
+      "correct": 7,
+      "accuracy": 0.4666666666666667
+    },
+    "11": {
+      "total": 8,
+      "correct": 5,
+      "accuracy": 0.625
+    },
+    "12": {
+      "total": 7,
+      "correct": 1,
+      "accuracy": 0.14285714285714285
+    },
+    "13": {
+      "total": 1,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "14": {
+      "total": 1,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "19": {
+      "total": 1,
+      "correct": 0,
+      "accuracy": 0.0
+    }
+  },
+  "sample_errors": [
+    {
+      "word_id": "j01-045-09-05",
+      "ground_truth": "realised",
+      "prediction": "realied",
+      "confidence": 0.9238856434822083,
+      "length": 8
+    },
+    {
+      "word_id": "a04-027-01-05",
+      "ground_truth": "Vienna",
+      "prediction": "Viena",
+      "confidence": 0.9589574337005615,
+      "length": 6
+    },
+    {
+      "word_id": "g04-022-06-09",
+      "ground_truth": "plunged",
+      "prediction": "fanged",
+      "confidence": 0.7648971279462179,
+      "length": 7
+    },
+    {
+      "word_id": "g04-014-00-04",
+      "ground_truth": "shocked",
+      "prediction": "storhed",
+      "confidence": 0.9051025084086827,
+      "length": 7
+    },
+    {
+      "word_id": "e04-127-01-07",
+      "ground_truth": "greatly",
+      "prediction": "yreatly",
+      "confidence": 0.9259947112628392,
+      "length": 7
+    },
+    {
+      "word_id": "j04-094-03-00",
+      "ground_truth": "chromate",
+      "prediction": "Chromate",
+      "confidence": 0.9751236364245415,
+      "length": 8
+    },
+    {
+      "word_id": "m01-022-03-03",
+      "ground_truth": "syllables",
+      "prediction": "syelabls",
+      "confidence": 0.8636810332536697,
+      "length": 9
+    },
+    {
+      "word_id": "p03-142-04-03",
+      "ground_truth": "Di",
+      "prediction": "3n",
+      "confidence": 0.3868456035852432,
+      "length": 2
+    },
+    {
+      "word_id": "g06-018f-01-03",
+      "ground_truth": "returned",
+      "prediction": "relurned",
+      "confidence": 0.7919095568358898,
+      "length": 8
+    },
+    {
+      "word_id": "e07-007-07-05",
+      "ground_truth": "mantis",
+      "prediction": "manti's",
+      "confidence": 0.9121412123952594,
+      "length": 6
+    },
+    {
+      "word_id": "b04-047-02-03",
+      "ground_truth": "Lord",
+      "prediction": "Lnd",
+      "confidence": 0.8518946170806885,
+      "length": 4
+    },
+    {
+      "word_id": "b06-097-02-02",
+      "ground_truth": "weeks",
+      "prediction": "weekes",
+      "confidence": 0.9601453642050425,
+      "length": 5
+    },
+    {
+      "word_id": "g03-043-04-05",
+      "ground_truth": "Also",
+      "prediction": "Allo",
+      "confidence": 0.7499908655881882,
+      "length": 4
+    },
+    {
+      "word_id": "n02-146-06-01",
+      "ground_truth": "ancient",
+      "prediction": "aucient",
+      "confidence": 0.9226034453936985,
+      "length": 7
+    },
+    {
+      "word_id": "b04-010-03-01",
+      "ground_truth": "should",
+      "prediction": "sowld",
+      "confidence": 0.7474816918373108,
+      "length": 6
+    },
+    {
+      "word_id": "g06-045f-02-02",
+      "ground_truth": "trial",
+      "prediction": "fiad",
+      "confidence": 0.7836667448282242,
+      "length": 5
+    },
+    {
+      "word_id": "g07-026a-05-05",
+      "ground_truth": "suspected",
+      "prediction": "sspected",
+      "confidence": 0.8783070649951696,
+      "length": 9
+    },
+    {
+      "word_id": "g06-047f-03-09",
+      "ground_truth": "One",
+      "prediction": "Dne",
+      "confidence": 0.7835438251495361,
+      "length": 3
+    },
+    {
+      "word_id": "g06-011f-02-05",
+      "ground_truth": "'",
+      "prediction": ".",
+      "confidence": 0.4870210289955139,
+      "length": 1
+    },
+    {
+      "word_id": "n02-146-00-12",
+      "ground_truth": "barb",
+      "prediction": "bab",
+      "confidence": 0.8940819501876831,
+      "length": 4
+    },
+    {
+      "word_id": "j01-059-04-03",
+      "ground_truth": "T-Junction",
+      "prediction": "tyuration",
+      "confidence": 0.6971679594781663,
+      "length": 10
+    },
+    {
+      "word_id": "l04-087-00-07",
+      "ground_truth": "panel",
+      "prediction": "banel",
+      "confidence": 0.8957266330718994,
+      "length": 5
+    },
+    {
+      "word_id": "n03-103-08-04",
+      "ground_truth": "hard",
+      "prediction": "had",
+      "confidence": 0.9958654642105103,
+      "length": 4
+    },
+    {
+      "word_id": "g03-043-01-00",
+      "ground_truth": "George",
+      "prediction": "Geonge",
+      "confidence": 0.8861712217330933,
+      "length": 6
+    },
+    {
+      "word_id": "l01-143-03-02",
+      "ground_truth": "hands",
+      "prediction": "handrs",
+      "confidence": 0.8068329493204752,
+      "length": 5
+    },
+    {
+      "word_id": "a01-000x-00-03",
+      "ground_truth": "stop",
+      "prediction": "stey",
+      "confidence": 0.7139133810997009,
+      "length": 4
+    },
+    {
+      "word_id": "g04-022-02-02",
+      "ground_truth": "was",
+      "prediction": "wod",
+      "confidence": 0.7015464206536611,
+      "length": 3
+    },
+    {
+      "word_id": "g06-045f-05-00",
+      "ground_truth": "Samuel",
+      "prediction": "Samul",
+      "confidence": 0.9037527680397034,
+      "length": 6
+    },
+    {
+      "word_id": "n03-097-00-06",
+      "ground_truth": "judge",
+      "prediction": "jndge",
+      "confidence": 0.9320894122123718,
+      "length": 5
+    },
+    {
+      "word_id": "g04-095-07-02",
+      "ground_truth": "just",
+      "prediction": "jut",
+      "confidence": 0.9883138736089071,
+      "length": 4
+    },
+    {
+      "word_id": "f04-035-01-07",
+      "ground_truth": "Camp",
+      "prediction": "Gamp",
+      "confidence": 0.7598474696278572,
+      "length": 4
+    },
+    {
+      "word_id": "b01-089-05-07",
+      "ground_truth": "away",
+      "prediction": "mway",
+      "confidence": 0.8168746531009674,
+      "length": 4
+    },
+    {
+      "word_id": "f04-057-05-07",
+      "ground_truth": "jobs",
+      "prediction": "jols",
+      "confidence": 0.9942405521869659,
+      "length": 4
+    },
+    {
+      "word_id": "g06-050f-00-00",
+      "ground_truth": "Mauro's",
+      "prediction": "Manne's",
+      "confidence": 0.7834421566554478,
+      "length": 7
+    },
+    {
+      "word_id": "g06-045f-01-01",
+      "ground_truth": "Lord",
+      "prediction": "hard",
+      "confidence": 0.8206143528223038,
+      "length": 4
+    },
+    {
+      "word_id": "l04-082-01-10",
+      "ground_truth": "young",
+      "prediction": "younf",
+      "confidence": 0.8622630715370179,
+      "length": 5
+    },
+    {
+      "word_id": "j01-066-09-08",
+      "ground_truth": "UO2",
+      "prediction": "We",
+      "confidence": 0.8965723514556885,
+      "length": 3
+    },
+    {
+      "word_id": "l04-093-02-02",
+      "ground_truth": "pounds",
+      "prediction": "prounds",
+      "confidence": 0.9637921367372785,
+      "length": 6
+    },
+    {
+      "word_id": "g06-089-04-05",
+      "ground_truth": "Admiralty",
+      "prediction": "sdmiralty",
+      "confidence": 0.8623177607854208,
+      "length": 9
+    },
+    {
+      "word_id": "g06-018f-02-05",
+      "ground_truth": "'",
+      "prediction": ",",
+      "confidence": 0.5400785207748413,
+      "length": 1
+    },
+    {
+      "word_id": "l01-157-04-03",
+      "ground_truth": "said",
+      "prediction": "sanid",
+      "confidence": 0.8215487957000732,
+      "length": 4
+    },
+    {
+      "word_id": "a02-000-00-00",
+      "ground_truth": "MR.",
+      "prediction": "MR",
+      "confidence": 0.58396877348423,
+      "length": 3
+    },
+    {
+      "word_id": "b06-045-04-03",
+      "ground_truth": "a",
+      "prediction": "A",
+      "confidence": 0.8816663026809692,
+      "length": 1
+    },
+    {
+      "word_id": "a04-023-01-03",
+      "ground_truth": "Dorothy",
+      "prediction": "Pootey",
+      "confidence": 0.7504736383756002,
+      "length": 7
+    },
+    {
+      "word_id": "a01-072x-07-01",
+      "ground_truth": "administration",
+      "prediction": "admiishretion",
+      "confidence": 0.8562520650716928,
+      "length": 14
+    },
+    {
+      "word_id": "b06-082-00-03",
+      "ground_truth": "Padley",
+      "prediction": "Padey",
+      "confidence": 0.8654473662376404,
+      "length": 6
+    },
+    {
+      "word_id": "j01-045-02-05",
+      "ground_truth": "equilibrated",
+      "prediction": "equilihrated",
+      "confidence": 0.8609040280183157,
+      "length": 12
+    },
+    {
+      "word_id": "g07-026a-01-00",
+      "ground_truth": "betrayed",
+      "prediction": "batrayed",
+      "confidence": 0.9566004574298859,
+      "length": 8
+    },
+    {
+      "word_id": "j01-059-02-05",
+      "ground_truth": "The",
+      "prediction": "se",
+      "confidence": 0.7670943140983582,
+      "length": 3
+    },
+    {
+      "word_id": "a01-058-07-05",
+      "ground_truth": "He",
+      "prediction": "te",
+      "confidence": 0.9264194369316101,
+      "length": 2
+    }
+  ],
+  "note": "Evaluation split is writer-independent (67 held-out test writers under seed 42); however, the original training provenance of models/iam_crnn_best.keras is not verified from primary training logs, so the checkpoint cannot be proven to have never seen these test writers during training."
+}

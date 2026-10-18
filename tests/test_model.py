@@ -24,3 +24,24 @@ def test_preprocessing_labels():
     assert processed.shape == (2, 47)
     assert processed[0, 0] == 1
     assert processed[1, 46] == 1
+
+
+def test_crnn_architecture_matches_checkpoint_contract():
+    from src.model import build_crnn
+
+    model = build_crnn(input_shape=(128, 32, 1), num_classes=80)
+    assert model.name == "crnn_model"
+    assert model.input_shape == (None, 128, 32, 1)
+    assert model.output_shape == (None, 32, 80)
+    assert model.count_params() == 530832
+    dummy_input = np.zeros((1, 128, 32, 1), dtype="float32")
+    output = model.predict(dummy_input, verbose=0)
+    assert output.shape == (1, 32, 80)
+
+
+def test_compile_and_train_accepts_custom_checkpoint_path(tmp_path):
+    import inspect
+    from src.train import compile_and_train
+
+    sig = inspect.signature(compile_and_train)
+    assert "checkpoint_path" in sig.parameters

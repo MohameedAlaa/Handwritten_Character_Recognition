@@ -1,0 +1,118 @@
+{
+  "checkpoint": "models/iam_crnn_best.keras",
+  "checkpoint_sha256": "9bec7bab1fa2b504ea72329c06d6be8420208f42ec40a31b06367ba70fa8b261",
+  "provenance_note": "Evaluation split is writer-independent (67 held-out test writers under seed 42); however, the original training provenance of models/iam_crnn_best.keras is not verified from primary training logs, so the checkpoint cannot be proven to have never seen these test writers during training.",
+  "writer_split": {
+    "seed": 42,
+    "num_test_writers": 67,
+    "total_test_samples": 9508,
+    "subset_1000_samples": 1000,
+    "failed_or_missing_samples_in_test_split": 0
+  },
+  "preprocessing_differences_raw_vs_prod": {
+    "full_9508_differing_tensors": 5,
+    "subset_1000_differing_tensors": 0,
+    "subset_1000_blank_flagged": 0,
+    "full_9508_blank_flagged": 6
+  },
+  "subset_1000_evaluation": {
+    "notebook_cell24_raw_logits_ctc_decode": {
+      "corpus_metrics": {
+        "exact_word_accuracy": 0.608,
+        "cer": 0.1513157894736842,
+        "wer": 0.3926073926073926
+      },
+      "notebook_macro_metrics": {
+        "exact_word_accuracy": 0.608,
+        "macro_cer": 0.13496575500522867,
+        "macro_wer_1_minus_acc": 0.392
+      }
+    },
+    "left_aligned_tight_crop_preprocessing": {
+      "corpus_metrics": {
+        "exact_word_accuracy": 0.068,
+        "cer": 0.43396686159844056,
+        "wer": 0.932067932067932
+      },
+      "notebook_macro_metrics": {
+        "exact_word_accuracy": 0.068,
+        "macro_cer": 0.6179585833756884,
+        "macro_wer_1_minus_acc": 0.932
+      }
+    },
+    "raw_training_resize_with_pad": {
+      "corpus_metrics": {
+        "exact_word_accuracy": 0.723,
+        "cer": 0.11038011695906433,
+        "wer": 0.2777222777222777
+      },
+      "notebook_macro_metrics": {
+        "exact_word_accuracy": 0.723,
+        "macro_cer": 0.09879901618848996,
+        "macro_wer_1_minus_acc": 0.277
+      }
+    },
+    "production_preprocess_for_crnn": {
+      "corpus_metrics": {
+        "exact_word_accuracy": 0.723,
+        "cer": 0.11038011695906433,
+        "wer": 0.2777222777222777
+      },
+      "notebook_macro_metrics": {
+        "exact_word_accuracy": 0.723,
+        "macro_cer": 0.09879901618848996,
+        "macro_wer_1_minus_acc": 0.277
+      }
+    }
+  },
+  "full_9508_evaluation": {
+    "notebook_cell24_raw_logits_ctc_decode": {
+      "corpus_metrics": {
+        "exact_word_accuracy": 0.6304164913756837,
+        "cer": 0.14164045116243382,
+        "wer": 0.3698486122792262
+      },
+      "notebook_macro_metrics": {
+        "exact_word_accuracy": 0.6304164913756837,
+        "macro_cer": 0.12608454043035472,
+        "macro_wer_1_minus_acc": 0.3695835086243164
+      }
+    },
+    "left_aligned_tight_crop_preprocessing": {
+      "corpus_metrics": {
+        "exact_word_accuracy": 0.0734118636937316,
+        "cer": 0.42126397094554846,
+        "wer": 0.9266190075693861
+      },
+      "notebook_macro_metrics": {
+        "exact_word_accuracy": 0.0734118636937316,
+        "macro_cer": 0.6172204425473077,
+        "macro_wer_1_minus_acc": 0.9265881363062684
+      }
+    },
+    "raw_training_resize_with_pad": {
+      "corpus_metrics": {
+        "exact_word_accuracy": 0.7361169541438788,
+        "cer": 0.1024067111690836,
+        "wer": 0.2641925988225399
+      },
+      "notebook_macro_metrics": {
+        "exact_word_accuracy": 0.7361169541438788,
+        "macro_cer": 0.09188319150705421,
+        "macro_wer_1_minus_acc": 0.26388304585612116
+      }
+    },
+    "production_preprocess_for_crnn": {
+      "corpus_metrics": {
+        "exact_word_accuracy": 0.7354859066049643,
+        "cer": 0.1025601677792271,
+        "wer": 0.26482338099243063
+      },
+      "notebook_macro_metrics": {
+        "exact_word_accuracy": 0.7354859066049643,
+        "macro_cer": 0.09251423904596881,
+        "macro_wer_1_minus_acc": 0.26451409339503573
+      }
+    }
+  }
+}

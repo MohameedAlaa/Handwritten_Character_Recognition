@@ -2,7 +2,6 @@ import numpy as np
 import pytest
 import cv2
 from src.inference import predict_text, predict_character
-import tensorflow as tf
 
 # Mock the Keras Model for testing inference without loading real weights
 class MockModel:

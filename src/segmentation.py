@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 
+from src.config import MAX_IMAGE_DIMENSION, MAX_IMAGE_PIXELS
+
 def remove_ruling_lines(binary: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Detect and remove long horizontal notebook ruling lines and vertical margin lines.
@@ -108,8 +110,20 @@ def segment_characters(image: np.ndarray, min_area: int = 20):
         boxes: List of bounding boxes (x, y, w, h).
         vis_image: Color image with bounding boxes drawn for visualization.
     """
-    # Handle empty/blank images
-    if image is None or image.size == 0 or np.max(image) == 0:
+    # Handle empty/blank images and enforce resource bounds before full-array processing
+    if image is None or image.size == 0:
+        return [], [], image
+    if image.ndim >= 2:
+        h_in, w_in = int(image.shape[0]), int(image.shape[1])
+        if w_in > MAX_IMAGE_DIMENSION or h_in > MAX_IMAGE_DIMENSION:
+            raise ValueError(
+                f"Image dimensions ({w_in}x{h_in}) exceed maximum allowed dimension ({MAX_IMAGE_DIMENSION}px)."
+            )
+        if w_in * h_in > MAX_IMAGE_PIXELS:
+            raise ValueError(
+                f"Image pixel count ({w_in * h_in}) exceeds maximum allowed limit ({MAX_IMAGE_PIXELS} pixels)."
+            )
+    if np.max(image) == 0:
         return [], [], image
 
     clean_binary, lines_mask = preprocess_for_segmentation(image, return_lines_mask=True)

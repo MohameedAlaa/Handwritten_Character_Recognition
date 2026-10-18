@@ -1,101 +1,102 @@
-import os
+"""Train CharNet and evaluate the saved best checkpoint on held-out EMNIST data."""
+import argparse
 import json
-import numpy as np
+import os
+
+import tensorflow as tf
 from sklearn.model_selection import train_test_split
 
-from src.config import ROOT_DIR, NUM_CLASSES, BATCH_SIZE, EPOCHS, INITIAL_LR, PATIENCE
-from src.data_loader import load_emnist_data, get_class_mapping
-from src.preprocessing import preprocess_images, preprocess_labels, create_tf_dataset
+from src.config import (
+    BEST_MODEL_PATH,
+    BATCH_SIZE,
+    EPOCHS,
+    EVALUATION_REPORT_PATH,
+    IAM_CRNN_MODEL_PATH,
+    IAM_EVALUATION_REPORT_PATH,
+    INITIAL_LR,
+    NUM_CLASSES,
+    PATIENCE,
+    ROOT_DIR,
+)
+from src.data_loader import get_class_mapping, load_emnist_data
+from src.evaluate import evaluate_crnn_model, evaluate_model
 from src.model import build_charnet
+from src.preprocessing import create_tf_dataset, preprocess_images, preprocess_labels
 from src.train import compile_and_train
 
+
 def main():
-    print("=== EMNIST Character Recognition Pipeline ===")
+    parser = argparse.ArgumentParser(description="Train and evaluate the EMNIST CharNet and IAM CRNN pipelines.")
+    parser.add_argument("--eval-only", action="store_true", help="Skip training and evaluate the saved checkpoint.")
+    parser.add_argument("--split", default="balanced", help="Currently only the local EMNIST balanced split is available.")
+    parser.add_argument("--eval-crnn", action="store_true", help="Evaluate the saved IAM CRNN word recognition checkpoint.")
+    parser.add_argument("--crnn-samples", type=int, default=1000, help="Number of held-out IAM test samples to evaluate (default: 1000).")
+    parser.add_argument("--skip-charnet", action="store_true", help="Skip CharNet training and evaluation.")
+    args = parser.parse_args()
+    if args.split.lower() != "balanced":
+        parser.error("Only the EMNIST balanced split is supported by the configured local IDX file paths.")
 
-    # 1. Load data
-    print("\n1. Loading local EMNIST dataset...")
-    (X_train_full, y_train_full), (X_test, y_test) = load_emnist_data()
+    if not args.skip_charnet:
+        print("=== EMNIST Character Recognition Pipeline ===")
+        print("Loading local EMNIST data. The test split will remain held out from training and validation.")
+        (x_train_full, y_train_full), (x_test, y_test) = load_emnist_data(split=args.split)
 
-    # 2. Split training data (90% train, 10% val) with reproducible seed
-    print("\n2. Splitting training data into train and validation sets...")
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_train_full, y_train_full,
-        test_size=0.10,
-        random_state=42,
-        stratify=y_train_full
-    )
-    print(f"Training samples: {X_train.shape[0]}")
-    print(f"Validation samples: {X_val.shape[0]}")
-    print(f"Test samples (held out): {X_test.shape[0]}")
+        if not args.eval_only:
+            x_train, x_val, y_train, y_val = train_test_split(
+                x_train_full,
+                y_train_full,
+                test_size=0.10,
+                random_state=42,
+                stratify=y_train_full,
+            )
+            print(f"Training samples: {len(x_train)}")
+            print(f"Validation samples: {len(x_val)}")
+            print(f"Held-out test samples: {len(x_test)}")
 
-    # Check class distribution
-    unique_train, counts_train = np.unique(y_train, return_counts=True)
-    print(f"\nClass distribution in training set: (Min: {counts_train.min()}, Max: {counts_train.max()})")
-    print("Distribution is balanced. No class weights needed.")
+            x_train_p = preprocess_images(x_train)
+            x_val_p = preprocess_images(x_val)
+            y_train_p = preprocess_labels(y_train, NUM_CLASSES)
+            y_val_p = preprocess_labels(y_val, NUM_CLASSES)
+            train_dataset = create_tf_dataset(x_train_p, y_train_p, BATCH_SIZE, shuffle=True)
+            val_dataset = create_tf_dataset(x_val_p, y_val_p, BATCH_SIZE, shuffle=False)
 
-    # 3. Preprocessing
-    print("\n3. Preprocessing images and labels...")
-    X_train_p = preprocess_images(X_train)
-    X_val_p = preprocess_images(X_val)
-    # We do NOT preprocess or touch X_test for training
+            model = build_charnet(num_classes=NUM_CLASSES)
+            model.summary()
+            history = compile_and_train(
+                model=model,
+                train_dataset=train_dataset,
+                val_dataset=val_dataset,
+                epochs=EPOCHS,
+                initial_lr=INITIAL_LR,
+                patience=PATIENCE,
+            )
+            os.makedirs(os.path.join(ROOT_DIR, "results"), exist_ok=True)
+            history_path = os.path.join(ROOT_DIR, "results", "training_history.json")
+            history_dict = {key: [float(value) for value in values] for key, values in history.history.items()}
+            with open(history_path, "w", encoding="utf-8") as handle:
+                json.dump(history_dict, handle, indent=2)
+            print(f"Saved training history: {history_path}")
 
-    y_train_p = preprocess_labels(y_train, NUM_CLASSES)
-    y_val_p = preprocess_labels(y_val, NUM_CLASSES)
+        if not os.path.isfile(BEST_MODEL_PATH):
+            raise FileNotFoundError(
+                f"CharNet checkpoint not found at {BEST_MODEL_PATH}. Run training first or place the checkpoint there."
+            )
 
-    print(f"Processed X_train shape: {X_train_p.shape}")
-    print(f"Processed y_train shape: {y_train_p.shape}")
+        print(f"Loading checkpoint for final evaluation: {BEST_MODEL_PATH}")
+        best_model = tf.keras.models.load_model(BEST_MODEL_PATH, compile=False)
+        x_test_p = preprocess_images(x_test)
+        y_test_p = preprocess_labels(y_test, NUM_CLASSES)
+        class_mapping = get_class_mapping()
+        evaluate_model(best_model, x_test_p, y_test_p, class_mapping, save_path=EVALUATION_REPORT_PATH)
 
-    # Create tf.data datasets
-    train_dataset = create_tf_dataset(X_train_p, y_train_p, BATCH_SIZE, shuffle=True)
-    val_dataset = create_tf_dataset(X_val_p, y_val_p, BATCH_SIZE, shuffle=False)
+    if args.eval_crnn:
+        print("\n=== IAM CRNN Word Recognition Pipeline ===")
+        evaluate_crnn_model(
+            model_path=IAM_CRNN_MODEL_PATH,
+            max_samples=args.crnn_samples,
+            save_path=IAM_EVALUATION_REPORT_PATH,
+        )
 
-    # 4. Build Model
-    print("\n4. Building CharNet architecture...")
-    model = build_charnet(num_classes=NUM_CLASSES)
-    model.summary()
-
-    # 5. Training
-    print("\n5. Starting training phase...")
-    print(f"Config: Adam(lr={INITIAL_LR}), Batch={BATCH_SIZE}, Max Epochs={EPOCHS}, Patience={PATIENCE}")
-
-    history = compile_and_train(
-        model=model,
-        train_dataset=train_dataset,
-        val_dataset=val_dataset,
-        epochs=EPOCHS,
-        initial_lr=INITIAL_LR,
-        patience=PATIENCE
-    )
-
-    # 6. Save History
-    results_dir = os.path.join(ROOT_DIR, 'results')
-    os.makedirs(results_dir, exist_ok=True)
-    history_path = os.path.join(results_dir, 'training_history.json')
-
-    print("\n6. Saving artifacts...")
-    # Convert types for JSON serialization
-    hist_dict = {}
-    for key, val in history.history.items():
-        hist_dict[key] = [float(v) for v in val]
-
-    with open(history_path, 'w') as f:
-        json.dump(hist_dict, f, indent=4)
-
-    best_val_acc = max(hist_dict['val_accuracy'])
-    best_val_loss = min(hist_dict['val_loss'])
-    final_train_acc = hist_dict['accuracy'][-1]
-    final_train_loss = hist_dict['loss'][-1]
-    epochs_run = len(hist_dict['loss'])
-
-    print("\n=== Training Summary ===")
-    print(f"Total epochs executed: {epochs_run}")
-    print(f"Best Validation Accuracy: {best_val_acc:.4f}")
-    print(f"Best Validation Loss: {best_val_loss:.4f}")
-    print(f"Final Training Accuracy: {final_train_acc:.4f}")
-    print(f"Final Training Loss: {final_train_loss:.4f}")
-    print(f"\nArtifacts saved:")
-    print(f"- Best model: models/charnet_best.keras")
-    print(f"- Training history: {history_path}")
 
 if __name__ == "__main__":
     main()
