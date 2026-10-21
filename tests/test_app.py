@@ -44,3 +44,34 @@ def test_app_modes_and_routing_smoke():
     at.button(key="recognize_word").click().run()
     assert len(at.exception) == 0
     assert any("Draw a word or upload an image first." in w.value for w in at.warning)
+
+
+def test_canvas_image_fallback_and_exception_handling():
+    """Verify _canvas_image gracefully handles headless Streamlit exceptions while letting genuine errors bubble up."""
+    from unittest.mock import patch
+    import streamlit as st
+
+    # 1. Headless fallback on StreamlitAPIException
+    with patch("app.st_canvas", side_effect=st.errors.StreamlitAPIException("Headless component unavailable")):
+        res = app._canvas_image(key="test_key", height=100, width=100, stroke_width=5)
+        assert res.image_data is None
+        assert res.json_data is None
+
+    # 2. Headless fallback on RuntimeError
+    with patch("app.st_canvas", side_effect=RuntimeError("Headless runtime missing")):
+        res = app._canvas_image(key="test_key", height=100, width=100, stroke_width=5)
+        assert res.image_data is None
+
+    # 3. Headless fallback on unregistered component ValueError
+    with patch("app.st_canvas", side_effect=ValueError("Component 'streamlit-drawable-canvas.streamlit_drawable_canvas' is not registered")):
+        res = app._canvas_image(key="test_key", height=100, width=100, stroke_width=5)
+        assert res.image_data is None
+
+    # 4. Ensure genuine defects (e.g., TypeError, arbitrary ValueError) are not silenced
+    with patch("app.st_canvas", side_effect=TypeError("Invalid canvas configuration")):
+        with pytest.raises(TypeError, match="Invalid canvas configuration"):
+            app._canvas_image(key="test_key", height=100, width=100, stroke_width=5)
+
+    with patch("app.st_canvas", side_effect=ValueError("Invalid numeric parameter")):
+        with pytest.raises(ValueError, match="Invalid numeric parameter"):
+            app._canvas_image(key="test_key", height=100, width=100, stroke_width=5)

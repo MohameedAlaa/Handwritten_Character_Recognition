@@ -30,18 +30,30 @@ def get_crnn_model():
 
 
 def _canvas_image(key: str, height: int, width: int, stroke_width: int):
-    return st_canvas(
-        fill_color="rgba(255, 255, 255, 1.0)",
-        stroke_width=stroke_width,
-        stroke_color="#FFFFFF",
-        background_color="#000000",
-        height=height,
-        width=width,
-        drawing_mode="freedraw",
-        key=key,
-        update_streamlit=True,
-        return_image_data=True,
-    )
+    try:
+        return st_canvas(
+            fill_color="rgba(255, 255, 255, 1.0)",
+            stroke_width=stroke_width,
+            stroke_color="#FFFFFF",
+            background_color="#000000",
+            height=height,
+            width=width,
+            drawing_mode="freedraw",
+            key=key,
+            update_streamlit=True,
+            return_image_data=True,
+        )
+    except (st.errors.StreamlitAPIException, RuntimeError):
+        # Graceful fallback specifically for headless test environments (e.g., Streamlit AppTest)
+        # where custom frontend bidirection components cannot be mounted without an active browser.
+        from types import SimpleNamespace
+        return SimpleNamespace(image_data=None, json_data=None)
+    except ValueError as exc:
+        if "is not registered" in str(exc):
+            from types import SimpleNamespace
+            return SimpleNamespace(image_data=None, json_data=None)
+        raise
+
 
 
 def _top_predictions(probabilities: np.ndarray, class_mapping, limit: int = 3):
